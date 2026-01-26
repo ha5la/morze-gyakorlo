@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+import logging
 import math
 import os
 import random
 import sys
 import urllib.request
 import wave
+
+logger = logging.getLogger(__name__)
 
 class Morse:
     def __init__(self, output, wpm=35, tone_hz=600, sample_rate=44100):
@@ -103,7 +106,7 @@ def append_word(output, word):
         append_wav(output, f"corpus/{mapped}.wav")
 
 def append_callsign(output, morse, callsign):
-    print(f"Appending callsign {callsign}")
+    logger.info(f"Appending callsign {callsign}")
     morse.write_text(callsign)
     morse.write_silence(40 * morse.samples_per_dit)
     append_word(output, callsign)
@@ -111,16 +114,21 @@ def append_callsign(output, morse, callsign):
 
 def cache_online_file(url, filename):
     if not os.path.isfile(filename):
-        print(f"Downloading {url}")
+        logger.info(f"Downloading {url}")
         urllib.request.urlretrieve(url, filename)
     return filename
 
+def load_callsigns():
+    master_scp = cache_online_file("https://supercheckpartial.com/MASTER.SCP", "MASTER.SCP")
+    logger.info("Loading callsigns")
+    return [line.strip().lower() for line in open(master_scp)]
+
 def main():
+    logging.basicConfig(level=logging.DEBUG)
     with wave.open("output.wav", "wb") as output:
         output.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
         m = Morse(output, wpm=int(sys.argv[1]))
-        master_scp = cache_online_file("https://supercheckpartial.com/MASTER.SCP", "MASTER.SCP")
-        callsigns = [line.strip().lower() for line in open(master_scp)]
+        callsigns = load_callsigns()
         for _ in range(int(sys.argv[2])):
             append_callsign(output, m, random.choice(callsigns))
 
