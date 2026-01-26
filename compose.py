@@ -89,11 +89,6 @@ class Morse:
 
 def append_wav(output, filename):
     with wave.open(filename, "rb") as w:
-        try:
-            output.setparams(w.getparams())
-        except wave.Error:
-            pass
-
         while True:
             frames = w.readframes(4096)
             if not frames:
