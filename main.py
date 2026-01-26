@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 import logging
 import math
 import os
@@ -6,6 +6,8 @@ import random
 import sys
 import urllib.request
 import wave
+
+from pyhamtools import LookupLib, Callinfo
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +107,9 @@ def append_word(output, word):
         mapped = {"/": "stroke"}.get(ch, ch)
         append_wav(output, f"corpus/{mapped}.wav")
 
-def append_callsign(output, morse, callsign):
-    logger.info(f"Appending callsign {callsign}")
+def append_callsign(output, morse, cic, callsign):
+    country = cic.get_country_name(callsign)
+    logger.info(f"Appending callsign {callsign} ({country})")
     morse.write_text(callsign)
     morse.write_silence(40 * morse.samples_per_dit)
     append_word(output, callsign)
@@ -128,9 +131,13 @@ def main():
     with wave.open("output.wav", "wb") as output:
         output.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
         m = Morse(output, wpm=int(sys.argv[1]))
+        cty_plist = cache_online_file("https://www.country-files.com/cty/cty.plist", "cty.plist")
+        my_lookuplib = LookupLib(lookuptype="countryfile", filename=cty_plist)
+        cic = Callinfo(my_lookuplib)
         callsigns = load_callsigns()
         for _ in range(int(sys.argv[2])):
-            append_callsign(output, m, random.choice(callsigns))
+            callsign = random.choice(callsigns)
+            append_callsign(output, m, cic, callsign)
 
 if __name__ == "__main__":
     main()
