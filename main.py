@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import math
+import os
 import random
 import sys
+import urllib.request
 import wave
 
 class Morse:
@@ -107,11 +109,18 @@ def append_callsign(output, morse, callsign):
     append_word(output, callsign)
     morse.write_silence(15 * morse.samples_per_dit)
 
+def cache_online_file(url, filename):
+    if not os.path.isfile(filename):
+        print(f"Downloading {url}")
+        urllib.request.urlretrieve(url, filename)
+    return filename
+
 def main():
     with wave.open("output.wav", "wb") as output:
         output.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
         m = Morse(output, wpm=int(sys.argv[1]))
-        callsigns = [line.strip().lower() for line in open("MASTER.SCP")]
+        master_scp = cache_online_file("https://supercheckpartial.com/MASTER.SCP", "MASTER.SCP")
+        callsigns = [line.strip().lower() for line in open(master_scp)]
         for _ in range(int(sys.argv[2])):
             append_callsign(output, m, random.choice(callsigns))
 
