@@ -107,9 +107,13 @@ def append_callsign(output, morse, callsign):
     append_word(output, callsign)
     morse.write_silence(15 * morse.samples_per_dit)
 
-with wave.open("output.wav", "wb") as output:
-    output.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
-    m = Morse(output, wpm=int(sys.argv[1]))
-    callsigns = [line.strip().lower() for line in open("MASTER.SCP")]
-    for _ in range(int(sys.argv[2])):
-        append_callsign(output, m, random.choice(callsigns))
+def main():
+    with wave.open("output.wav", "wb") as output:
+        output.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
+        m = Morse(output, wpm=int(sys.argv[1]))
+        callsigns = [line.strip().lower() for line in open("MASTER.SCP")]
+        for _ in range(int(sys.argv[2])):
+            append_callsign(output, m, random.choice(callsigns))
+
+if __name__ == "__main__":
+    main()
