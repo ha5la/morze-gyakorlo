@@ -103,7 +103,7 @@ def append_wav(output, filename):
 def append_word(output, word):
     for ch in word:
         mapped = {"/": "stroke"}.get(ch, ch)
-        append_wav(output, f"{mapped}.wav")
+        append_wav(output, f"corpus/{mapped}.wav")
 
 def append_callsign(output, morse, callsign):
     print(f"Appending callsign {callsign}")
