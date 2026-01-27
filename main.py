@@ -17,7 +17,6 @@ from slugify import slugify
 
 logger = logging.getLogger(__name__)
 
-audio_samples_written = 0
 video_frames_written = 0
 
 class Morse:
@@ -27,6 +26,7 @@ class Morse:
         self.samples_per_dit = int(sample_rate * 60 / (50 * wpm))  # PARIS = 50 dits: https://morsecode.world/international/timing/
         self.dit = self.compute_sinusoid(self.samples_per_dit)
         self.dah = self.compute_sinusoid(3 * self.samples_per_dit)
+        self.audio_samples_written = 0
 
     def compute_sinusoid(self, sample_count):
         result = bytearray(2 * sample_count)
@@ -43,8 +43,7 @@ class Morse:
 
     def write_samples(self, samples):
         self.output.writeframes(samples)
-        global audio_samples_written
-        audio_samples_written += len(samples) // 2
+        self.audio_samples_written += len(samples) // 2
 
     def write_silence(self, sample_count):
         self.write_samples(bytearray(2 * sample_count))
@@ -203,36 +202,33 @@ def cache_map_image(country_name):
 def append_wav(output, filename):
     with wave.open(filename, "rb") as w:
         while True:
-            frames = w.readframes(4096)
-            if not frames:
+            samples = w.readframes(4096)
+            if not samples:
                 break
-            output.writeframes(frames)
-            global audio_samples_written
-            audio_samples_written += len(frames) // 2
+            output.write_samples(samples)
 
 def append_word(output, word):
     for ch in word:
         mapped = {"/": "stroke"}.get(ch, ch)
         append_wav(output, f"corpus/{mapped}.wav")
 
-def append_callsign(output, morse, cic, video, callsign):
+def append_callsign(morse, cic, video, callsign):
     country = cic.get_country_name(callsign)
     logger.info(f"Appending callsign {callsign} ({country})")
     morse.write_text(callsign)
     morse.write_silence(40 * morse.samples_per_dit)
-    append_word(output, callsign)
+    append_word(morse, callsign)
     morse.write_silence(15 * morse.samples_per_dit)
 
     map_filename = cache_map_image(country)
     img = cv2.imread(map_filename)
     assert img.shape[:2] == (1080, 1920)
-    global audio_samples_written
     global video_frames_written
-    while video_frames_written / 30 < audio_samples_written / 44100:
+    while video_frames_written / 30 < morse.audio_samples_written / 44100:
         video.write(img)
         video_frames_written += 1
 
-    logger.info(f"A/V: {audio_samples_written/44100}/{video_frames_written/30} {audio_samples_written}/{video_frames_written}")
+    logger.info(f"A/V: {morse.audio_samples_written/44100}/{video_frames_written/30} {morse.audio_samples_written}/{video_frames_written}")
 
 
 def cache_online_file(url, filename):
@@ -261,7 +257,7 @@ def main():
         callsigns = load_callsigns()
         for _ in range(int(sys.argv[2])):
             callsign = random.choice(callsigns)
-            append_callsign(output, m, cic, video, callsign)
+            append_callsign(m, cic, video, callsign)
 
         video.release()
 
