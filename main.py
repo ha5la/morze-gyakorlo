@@ -17,8 +17,6 @@ from slugify import slugify
 
 logger = logging.getLogger(__name__)
 
-video_frames_written = 0
-
 class Morse:
     def __init__(self, output, wpm=35, tone_hz=600, sample_rate=44100):
         self.output = output
@@ -212,6 +210,28 @@ def append_word(output, word):
         mapped = {"/": "stroke"}.get(ch, ch)
         append_wav(output, f"corpus/{mapped}.wav")
 
+class VideoOutput:
+    def __init__(self, filename):
+        self.filename = filename
+        self.writer = None
+        self.frames_written = 0
+
+    def __enter__(self):
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        self.writer = cv2.VideoWriter(self.filename, fourcc, 30, (1920, 1080))
+        if not self.writer.isOpened():
+            raise RuntimeError(f"Failed to open output video file {self.filename}")
+
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.writer:
+            self.writer.release()
+
+    def write_frame(self, frame):
+        self.writer.write(frame)
+        self.frames_written += 1
+
 def append_callsign(morse, cic, video, callsign):
     country = cic.get_country_name(callsign)
     logger.info(f"Appending callsign {callsign} ({country})")
@@ -223,12 +243,11 @@ def append_callsign(morse, cic, video, callsign):
     map_filename = cache_map_image(country)
     img = cv2.imread(map_filename)
     assert img.shape[:2] == (1080, 1920)
-    global video_frames_written
-    while video_frames_written / 30 < morse.audio_samples_written / 44100:
-        video.write(img)
-        video_frames_written += 1
+    frame_count = 30 * morse.audio_samples_written // 44100 - video.frames_written
+    for i in range(frame_count):
+        video.write_frame(img)
 
-    logger.info(f"A/V: {morse.audio_samples_written/44100}/{video_frames_written/30} {morse.audio_samples_written}/{video_frames_written}")
+    logger.info(f"A-V: {morse.audio_samples_written/44100 - video.frames_written/30}")
 
 
 def cache_online_file(url, filename):
@@ -244,22 +263,19 @@ def load_callsigns():
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    with wave.open("audio.wav", "wb") as output:
-        output.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        video = cv2.VideoWriter("video.mp4", fourcc, 30, (1920, 1080))
-        if not video.isOpened():
-            raise RuntimeError("Failed to open output video file")
-        m = Morse(output, wpm=int(sys.argv[1]))
-        cty_plist = cache_online_file("https://www.country-files.com/cty/cty.plist", "cty.plist")
-        my_lookuplib = LookupLib(lookuptype="countryfile", filename=cty_plist)
-        cic = Callinfo(my_lookuplib)
-        callsigns = load_callsigns()
-        for _ in range(int(sys.argv[2])):
-            callsign = random.choice(callsigns)
-            append_callsign(m, cic, video, callsign)
 
-        video.release()
+    cty_plist = cache_online_file("https://www.country-files.com/cty/cty.plist", "cty.plist")
+    my_lookuplib = LookupLib(lookuptype="countryfile", filename=cty_plist)
+    cic = Callinfo(my_lookuplib)
+
+    with wave.open("audio.wav", "wb") as audio:
+        audio.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
+        m = Morse(audio, wpm=int(sys.argv[1]))
+        with VideoOutput("video.mp4") as video:
+            callsigns = load_callsigns()
+            for _ in range(int(sys.argv[2])):
+                callsign = random.choice(callsigns)
+                append_callsign(m, cic, video, callsign)
 
     logger.info("Multiplexing video and audio")
     subprocess.run([
