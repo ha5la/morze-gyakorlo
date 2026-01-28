@@ -225,7 +225,7 @@ class VideoOutput:
         self.frames_written = 0
 
     def __enter__(self):
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        fourcc = cv2.VideoWriter_fourcc(*'avc1')
         self.writer = cv2.VideoWriter(self.filename, fourcc, 30, (1920, 1080))
         if not self.writer.isOpened():
             raise RuntimeError(f"Failed to open output video file {self.filename}")
