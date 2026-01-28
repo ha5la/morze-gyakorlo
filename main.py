@@ -31,8 +31,9 @@ class Morse:
         phi = 0
         fade_len = self.samples_per_dit // 10
         for i in range(sample_count):
-            fade = min(1, i / fade_len, (sample_count - 1 - i) / fade_len)
-            sample = int(math.sin(phi) * 20000 * fade)
+            t = min(1, i / fade_len, (sample_count - 1 - i) / fade_len)
+            t = t * t * (3 - 2 * t)
+            sample = int(math.sin(phi) * 20000 * t)
             result[i * 2] = sample & 255
             result[i * 2 + 1] = (sample >> 8) & 255
             phi += self.delta_phi
