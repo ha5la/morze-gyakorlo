@@ -29,7 +29,7 @@ class Morse:
     def compute_sinusoid(self, sample_count):
         result = bytearray(2 * sample_count)
         phi = 0
-        fade_len = self.samples_per_dit // 10
+        fade_len = self.samples_per_dit // 5
         for i in range(sample_count):
             t = min(1, i / fade_len, (sample_count - 1 - i) / fade_len)
             t = t * t * (3 - 2 * t)
