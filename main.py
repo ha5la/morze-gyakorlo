@@ -20,11 +20,16 @@ logger = logging.getLogger(__name__)
 class Morse:
     def __init__(self, output, wpm=35, tone_hz=600, sample_rate=44100):
         self.output = output
+        output.setparams((1, 2, sample_rate, 0, "NONE", "not compressed"))
+        self.sample_rate = sample_rate
         self.delta_phi = 2 * math.pi * tone_hz / sample_rate
         self.samples_per_dit = int(sample_rate * 60 / (50 * wpm))  # PARIS = 50 dits: https://morsecode.world/international/timing/
         self.dit = self.compute_sinusoid(self.samples_per_dit)
         self.dah = self.compute_sinusoid(3 * self.samples_per_dit)
         self.audio_samples_written = 0
+
+    def time(self):
+        return self.audio_samples_written / self.sample_rate
 
     def compute_sinusoid(self, sample_count):
         result = bytearray(2 * sample_count)
@@ -248,11 +253,11 @@ def append_callsign(morse, cic, video, callsign, progress):
         images.append(cv2.imread(cache_pulsing_map_image(country, i / 4)))
         assert images[i].shape[:2] == (1080, 1920)
 
-    frame_count = 30 * morse.audio_samples_written // 44100 - video.frames_written
+    frame_count = int(30 * morse.time()) - video.frames_written
     for i in range(frame_count):
         video.write_frame(images[(i // 3) & 3])
 
-    logger.info(f"A-V: {morse.audio_samples_written/44100 - video.frames_written/30}")
+    logger.info(f"A-V: {morse.time() - video.frames_written/30}")
 
 
 def cache_online_file(url, filename):
@@ -274,7 +279,6 @@ def main():
     cic = Callinfo(my_lookuplib)
 
     with wave.open("audio.wav", "wb") as audio:
-        audio.setparams((1, 2, 44100, 0, "NONE", "not compressed"))
         m = Morse(audio, wpm=int(sys.argv[1]))
         with VideoOutput("video.mp4") as video:
             callsigns = load_callsigns()
