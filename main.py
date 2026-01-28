@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run
 import cartopy.crs as ccrs
 import cartopy.io.shapereader as shpreader
+import cartopy.feature as cfeature
 import cv2
 import logging
 import math
@@ -111,7 +112,15 @@ class Morse:
 def create_pulsing_map_image(output_path, highlighted_country, t):
     logger.info(f"Creating map[{t}] for {highlighted_country}")
     fig = plt.figure(figsize=(16, 9), dpi=120)
-    ax = plt.axes(projection=ccrs.PlateCarree())
+    ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
+
+    ax.stock_img()
+    ax.add_feature(cfeature.LAND)
+    ax.add_feature(cfeature.OCEAN)
+    ax.add_feature(cfeature.COASTLINE)
+    ax.add_feature(cfeature.BORDERS, linestyle=':')
+    ax.add_feature(cfeature.LAKES, alpha=0.5)
+    ax.add_feature(cfeature.RIVERS)
 
     shpfilename = shpreader.natural_earth(resolution='110m', category='cultural', name='admin_0_countries')
 
@@ -186,6 +195,27 @@ def create_pulsing_map_image(output_path, highlighted_country, t):
             linewidth = 1 + pulse * 3
             ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='red', edgecolor='darkred', linewidth=linewidth)
             found = True
+            min_lon, min_lat, max_lon, max_lat = country.geometry.bounds
+
+            center_lon = (min_lon + max_lon) / 2
+            center_lat = (min_lat + max_lat) / 2
+            lon_range = (max_lon - min_lon) * 1.2
+            lat_range = (max_lat - min_lat) * 1.2
+
+            aspect = 16 / 9
+
+            if lon_range / lat_range > aspect:
+                lat_range = lon_range / aspect
+            else:
+                lon_range = lat_range * aspect
+
+            extent = [
+                center_lon - lon_range / 2,
+                center_lon + lon_range / 2,
+                center_lat - lat_range / 2,
+                center_lat + lat_range / 2
+            ]
+#            ax.set_extent(extent, crs=ccrs.PlateCarree())
         else:
             ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='lightgray', edgecolor='gray', linewidth=0.5, alpha=0.3)
 
@@ -193,10 +223,10 @@ def create_pulsing_map_image(output_path, highlighted_country, t):
         logger.warning(f"country not found: {highlighted_country} (mapped to {mapped_country})")
 
     ax.set_global()
-    plt.axis('off')
-    plt.tight_layout(pad=0)
-    plt.savefig(output_path, bbox_inches=None, pad_inches=0, facecolor='black', dpi=120)
-    plt.close()
+    ax.axis('off')
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    fig.savefig(output_path, bbox_inches=None, pad_inches=0, facecolor='black', dpi=120)
+    plt.close(fig)
 
 def cache_pulsing_map_image(country_name, t):
     filename = f"map-{slugify(country_name)}-{t}.png"
