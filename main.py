@@ -294,6 +294,7 @@ def main():
         '-i', 'audio.wav',
         '-c:v', 'copy',
         '-c:a', 'aac',
+        '-af', 'pan=stereo|c0=c0|c1=-1*c0,adelay=0|10',  # Stereoize with Haas
         '-shortest',
         '-y',
         'out.mp4'
