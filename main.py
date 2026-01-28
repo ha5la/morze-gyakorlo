@@ -18,7 +18,7 @@ from slugify import slugify
 logger = logging.getLogger(__name__)
 
 class Morse:
-    def __init__(self, output, wpm=35, tone_hz=600, sample_rate=44100):
+    def __init__(self, output, wpm=35, tone_hz=600, sample_rate=48000):
         self.output = output
         output.setparams((1, 2, sample_rate, 0, "NONE", "not compressed"))
         self.sample_rate = sample_rate
@@ -216,7 +216,7 @@ def append_wav(output, filename):
 def append_word(output, word):
     for ch in word:
         mapped = {"/": "stroke"}.get(ch, ch)
-        append_wav(output, f"corpus/{mapped}.wav")
+        append_wav(output, f"corpus/{output.sample_rate}/{mapped}.wav")
 
 class VideoOutput:
     def __init__(self, filename):
