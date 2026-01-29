@@ -15,6 +15,8 @@ import wave
 
 from pyhamtools import LookupLib, Callinfo
 from slugify import slugify
+from tqdm import trange
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -251,9 +253,9 @@ class VideoOutput:
         self.writer.write(frame)
         self.frames_written += 1
 
-def append_callsign(morse, cic, video, callsign, progress):
+def append_callsign(morse, cic, video, callsign):
     country = cic.get_country_name(callsign)
-    logger.info(f"Appending callsign {callsign} ({country}) ({int(progress * 100)}%)")
+    logger.info(f"Appending callsign {callsign} ({country})")
     morse.write_text(callsign)
     morse.write_silence(40 * morse.samples_per_dit)
     append_word(morse, callsign)
@@ -283,6 +285,7 @@ def load_callsigns():
 def main():
     logging.basicConfig(level=logging.INFO)
 
+    callsigns = load_callsigns()
     cty_plist = cache_online_file("https://www.country-files.com/cty/cty.plist", "cty.plist")
     my_lookuplib = LookupLib(lookuptype="countryfile", filename=cty_plist)
     cic = Callinfo(my_lookuplib)
@@ -290,11 +293,9 @@ def main():
     with wave.open("audio.wav", "wb") as audio:
         m = Morse(audio, wpm=int(sys.argv[1]))
         with VideoOutput("video.mkv") as video:
-            callsigns = load_callsigns()
-            total = int(sys.argv[2])
-            for i in range(total):
-                callsign = random.choice(callsigns)
-                append_callsign(m, cic, video, callsign, i / total)
+            with logging_redirect_tqdm():
+                for _ in trange(int(sys.argv[2])):
+                    append_callsign(m, cic, video, random.choice(callsigns))
 
     logger.info("Multiplexing video and audio")
     subprocess.run([
