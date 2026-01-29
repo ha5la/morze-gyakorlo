@@ -323,11 +323,13 @@ def main():
         '-i', 'video.mp4',
         '-i', 'audio.wav',
         '-c:v', 'copy',
-        '-c:a', 'aac',
+        '-c:a', 'flac',
+        '-compression_level', '12',  # this is for flac
         '-af', 'pan=stereo|c0=c0|c1=-1*c0,adelay=0|10',  # Stereoize with Haas
+        '-cues_to_front', '1',  # "-movflags +faststart" equivalent for mkv
         '-shortest',
         '-y',
-        'out.mp4'
+        'out.mkv'
     ], check=True)
 
 if __name__ == "__main__":
