@@ -226,7 +226,7 @@ def append_word(output, word):
         append_wav(output, f"corpus/{output.sample_rate}/{mapped}.wav")
 
 class VideoOutput:
-    def __init__(self, filename, fps=30):
+    def __init__(self, filename, fps=2):
         self.filename = filename
         self.fps = fps
         self.writer = None
@@ -236,7 +236,7 @@ class VideoOutput:
         return self.frames_written / self.fps
 
     def __enter__(self):
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
+        fourcc = cv2.VideoWriter_fourcc(*'png ')
         self.writer = cv2.VideoWriter(self.filename, fourcc, self.fps, (1920, 1080))
         if not self.writer.isOpened():
             raise RuntimeError(f"Failed to open output video file {self.filename}")
@@ -289,7 +289,7 @@ def main():
 
     with wave.open("audio.wav", "wb") as audio:
         m = Morse(audio, wpm=int(sys.argv[1]))
-        with VideoOutput("video.mp4") as video:
+        with VideoOutput("video.mkv") as video:
             callsigns = load_callsigns()
             total = int(sys.argv[2])
             for i in range(total):
@@ -299,9 +299,13 @@ def main():
     logger.info("Multiplexing video and audio")
     subprocess.run([
         'ffmpeg',
-        '-i', 'video.mp4',
+        '-i', 'video.mkv',
         '-i', 'audio.wav',
-        '-c:v', 'copy',
+        '-c:v', 'libx264',
+        '-preset', 'medium',
+        '-tune', 'stillimage',
+        '-crf', '18',
+        '-pix_fmt', 'yuv420p',
         '-c:a', 'flac',
         '-compression_level', '12',  # this is for flac
         '-af', 'pan=stereo|c0=c0|c1=-1*c0,adelay=0|10',  # Stereoize with Haas
