@@ -249,14 +249,18 @@ def append_word(output, word):
         append_wav(output, f"corpus/{output.sample_rate}/{mapped}.wav")
 
 class VideoOutput:
-    def __init__(self, filename):
+    def __init__(self, filename, fps=30):
         self.filename = filename
+        self.fps = fps
         self.writer = None
         self.frames_written = 0
 
+    def time(self):
+        return self.frames_written / self.fps
+
     def __enter__(self):
         fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        self.writer = cv2.VideoWriter(self.filename, fourcc, 30, (1920, 1080))
+        self.writer = cv2.VideoWriter(self.filename, fourcc, self.fps, (1920, 1080))
         if not self.writer.isOpened():
             raise RuntimeError(f"Failed to open output video file {self.filename}")
 
@@ -283,11 +287,11 @@ def append_callsign(morse, cic, video, callsign, progress):
         images.append(cv2.imread(cache_pulsing_map_image(country, i / 4)))
         assert images[i].shape[:2] == (1080, 1920)
 
-    frame_count = int(30 * morse.time()) - video.frames_written
+    frame_count = int(video.fps * morse.time()) - video.frames_written
     for i in range(frame_count):
         video.write_frame(images[(i // 3) & 3])
 
-    logger.info(f"A-V: {morse.time() - video.frames_written/30}")
+    logger.info(f"A-V: {morse.time() - video.time()}")
 
 
 def cache_online_file(url, filename):
