@@ -109,8 +109,8 @@ class Morse:
         for c in text.upper():
            self.write_character(c)
 
-def create_pulsing_map_image(output_path, highlighted_country, t):
-    logger.info(f"Creating map[{t}] for {highlighted_country}")
+def create_map_image(output_path, highlighted_country):
+    logger.info(f"Creating map for {highlighted_country}")
     fig = plt.figure(figsize=(16, 9), dpi=120)
     ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
 
@@ -191,31 +191,8 @@ def create_pulsing_map_image(output_path, highlighted_country, t):
     found = False
     for country in countries:
         if mapped_country and country.attributes['NAME_LONG'] == mapped_country:
-            pulse = 0.5 + 0.5 * math.sin(t * 2 * math.pi)
-            linewidth = 1 + pulse * 3
-            ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='red', edgecolor='darkred', linewidth=linewidth)
+            ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='red', edgecolor='darkred', linewidth=1)
             found = True
-            min_lon, min_lat, max_lon, max_lat = country.geometry.bounds
-
-            center_lon = (min_lon + max_lon) / 2
-            center_lat = (min_lat + max_lat) / 2
-            lon_range = (max_lon - min_lon) * 1.2
-            lat_range = (max_lat - min_lat) * 1.2
-
-            aspect = 16 / 9
-
-            if lon_range / lat_range > aspect:
-                lat_range = lon_range / aspect
-            else:
-                lon_range = lat_range * aspect
-
-            extent = [
-                center_lon - lon_range / 2,
-                center_lon + lon_range / 2,
-                center_lat - lat_range / 2,
-                center_lat + lat_range / 2
-            ]
-#            ax.set_extent(extent, crs=ccrs.PlateCarree())
         else:
             ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='lightgray', edgecolor='gray', linewidth=0.5, alpha=0.3)
 
@@ -228,10 +205,10 @@ def create_pulsing_map_image(output_path, highlighted_country, t):
     fig.savefig(output_path, bbox_inches=None, pad_inches=0, facecolor='black', dpi=120)
     plt.close(fig)
 
-def cache_pulsing_map_image(country_name, t):
-    filename = f"map-{slugify(country_name)}-{t}.png"
+def cache_map_image(country_name):
+    filename = f"map-{slugify(country_name)}.png"
     if not os.path.isfile(filename):
-        create_pulsing_map_image(filename, country_name, t)
+        create_map_image(filename, country_name)
 
     return filename
 
@@ -282,14 +259,12 @@ def append_callsign(morse, cic, video, callsign, progress):
     append_word(morse, callsign)
     morse.write_silence(15 * morse.samples_per_dit)
 
-    images = []
-    for i in range(4):
-        images.append(cv2.imread(cache_pulsing_map_image(country, i / 4)))
-        assert images[i].shape[:2] == (1080, 1920)
+    image = cv2.imread(cache_map_image(country))
+    assert image.shape[:2] == (1080, 1920)
 
     frame_count = int(video.fps * morse.time()) - video.frames_written
     for i in range(frame_count):
-        video.write_frame(images[(i // 3) & 3])
+        video.write_frame(image)
 
     logger.info(f"A-V: {morse.time() - video.time()}")
 
