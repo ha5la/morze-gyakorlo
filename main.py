@@ -193,10 +193,9 @@ def create_map_image(output_path, highlighted_country):
     found = False
     for country in countries:
         if mapped_country and country.attributes['NAME_LONG'] == mapped_country:
-            ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='red', edgecolor='darkred', linewidth=1)
+            ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='red', edgecolor='darkred', linewidth=1, alpha=0.5)
             found = True
-        else:
-            ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='lightgray', edgecolor='gray', linewidth=0.5, alpha=0.3)
+            break
 
     if not found:
         logger.warning(f"country not found: {highlighted_country} (mapped to {mapped_country})")
