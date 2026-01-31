@@ -279,7 +279,9 @@ def cache_online_file(url, filename):
 def load_callsigns():
     master_scp = cache_online_file("https://supercheckpartial.com/MASTER.SCP", "MASTER.SCP")
     logger.info("Loading callsigns")
-    return [line.strip().lower() for line in open(master_scp)]
+    result = [line.strip().lower() for line in open(master_scp) if not line.startswith('#')]
+    logger.info(f"Total number of callsigns in MASTER.SCP: {len(result)}")
+    return result
 
 def main():
     logging.basicConfig(level=logging.INFO)
