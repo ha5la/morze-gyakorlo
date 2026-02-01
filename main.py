@@ -205,10 +205,10 @@ def canonicalize_country_name(name):
 
 def create_map_image(output_path, highlighted_country):
     logger.info(f"Creating map for {highlighted_country}")
-    for name, geom in natural_earth_list("10m", "admin_0_countries"):
+    for name, geom in natural_earth_list("50m", "admin_0_countries"):
         if canonicalize_country_name(name) == highlighted_country:
             return draw_natural_earth_item(output_path, geom)
-    for name, geom in natural_earth_list("10m", "admin_0_countries", "NAME"):
+    for name, geom in natural_earth_list("50m", "admin_0_countries", "NAME"):
         if canonicalize_country_name(name) == highlighted_country:
             return draw_natural_earth_item(output_path, geom)
     for name, geom in natural_earth_list("10m", "admin_0_map_units"):

@@ -97,8 +97,8 @@ def natural_earth_list(resolution, name, field_name="NAME_LONG"):
 
 def dump_natural_earth():
     l = set()
-    l = l.union(natural_earth_list("10m", "admin_0_countries"))
-    l = l.union(natural_earth_list("10m", "admin_0_countries", "NAME"))
+    l = l.union(natural_earth_list("50m", "admin_0_countries"))
+    l = l.union(natural_earth_list("50m", "admin_0_countries", "NAME"))
     l = l.union(natural_earth_list("10m", "admin_0_map_units"))  # Wales
     l = l.union(natural_earth_list("50m", "admin_0_tiny_countries"))  # Canary islands
     l = l.union(natural_earth_list("110m", "admin_1_states_provinces", "name"))  # Alaska, Hawaii
