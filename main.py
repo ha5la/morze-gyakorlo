@@ -111,8 +111,13 @@ class Morse:
         for c in text.upper():
            self.write_character(c)
 
-def create_map_image(output_path, highlighted_country):
-    logger.info(f"Creating map for {highlighted_country}")
+def natural_earth_list(resolution, name, field_name="NAME_LONG"):
+    shpfilename = shpreader.natural_earth(resolution=resolution, category="cultural", name=name)
+    reader = shpreader.Reader(shpfilename)
+    for item in reader.records():
+        yield item.attributes[field_name], item.geometry
+
+def draw_natural_earth_item(output_path, geometry):
     fig = plt.figure(figsize=(16, 9), dpi=120)
     ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
 
@@ -124,87 +129,98 @@ def create_map_image(output_path, highlighted_country):
     ax.add_feature(cfeature.LAKES, alpha=0.5)
     ax.add_feature(cfeature.RIVERS)
 
-    shpfilename = shpreader.natural_earth(resolution='110m', category='cultural', name='admin_0_countries')
-
-    reader = shpreader.Reader(shpfilename)
-    countries = reader.records()
-
-    mapped_country = {
-        "African Italy": "Italy",
-        "Aland Islands": "Finland",
-        "Alaska": "United States",
-        "Antigua & Barbuda": None,
-        "Aruba": None,
-        "Asiatic Russia": "Russian Federation",
-        "Asiatic Turkey": "Turkey",
-        "Azores": "Portugal",
-        "Balearic Islands": "Spain",
-        "Barbados": None,
-        "Bosnia-Herzegovina": "Bosnia and Herzegovina",
-        "Canary Islands": "Spain",
-        "Cayman Islands": "United States",
-        "Ceuta & Melilla": "Spain",
-        "Corsica": "France",
-        "Crete": "Greece",
-        "Curacao": "Venezuela",
-        "Dodecanese": None,
-        "East Malaysia": "Malaysia",
-        "England": "United Kingdom",
-        "European Turkey": "Turkey",
-        "European Russia": "Russian Federation",
-        "Falkland Islands": None,
-        "Fed. Rep. of Germany": "Germany",
-        "French Guiana": "United States",
-        "Guam": None,
-        "Guantanamo Bay": "Cuba",
-        "Guernsey": None,
-        "Hawaii": "United States",
-        "Hong Kong": "China",
-        "Isle of Man": "United Kingdom",
-        "Jersey": None,
-        "Kaliningrad": "Russian Federation",
-        "Madeira Islands": "Portugal",
-        "Malta": None,
-        "Market Reef": "Sweden",
-        "Montserrat": "Spain",
-        "Norfolk Island": "New Caledonia",
-        "Northern Ireland": "Ireland",
-        "Saba & St. Eustatius": None,
-        "Sardinia": None,
-        "Seychelles": "Madagascar",
-        "Sicily": "Italy",
-        "Singapore": "Malaysia",
-        "Sint Maarten": None,
-        "St. Barthelemy": None,
-        "St. Kitts & Nevis": None,
-        "St. Martin": "Puerto Rico",
-        "St. Vincent": None,
-        "Svalbard": "Norway",
-        "Trinidad & Tobago": "Venezuela",
-        "Turks & Caicos Islands": "Dominican Republic",
-        "US Virgin Islands": "United States",
-        "Wales": "United Kingdom",
-        "West Malaysia": "Malaysia",
-	}.get(highlighted_country, highlighted_country)
-
-#    country_names = sorted([c.attributes['NAME_LONG'] for c in countries])
-#    if mapped_country is not None and mapped_country not in country_names:
-#        raise RuntimeError(f"{mapped_country} is not in {country_names}")
-    found = False
-    for country in countries:
-        if mapped_country and country.attributes['NAME_LONG'] == mapped_country:
-            ax.add_geometries([country.geometry], ccrs.PlateCarree(), facecolor='red', edgecolor='darkred', linewidth=1, alpha=0.5)
-            found = True
-            break
-
-    if not found:
-        logger.warning(f"country not found: {highlighted_country} (mapped to {mapped_country})")
+    ax.add_geometries([geometry], ccrs.PlateCarree(), facecolor='red', edgecolor='darkred', linewidth=2, alpha=0.5)
 
     ax.set_global()
     ax.axis('off')
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     fig.savefig(output_path, bbox_inches=None, pad_inches=0, facecolor='black', dpi=120)
     plt.close(fig)
+
+def canonicalize_country_name(name):
+    name = slugify(name.lower().replace("saint-", " saint ").replace("st.", " saint ").replace("&", " and ").replace("-", " and "))
+    return {
+        # name differences
+        "cape-verde": "republic-of-cabo-verde",
+        "cocos-keeling-islands": "cocos-islands",
+        "falkland-islands": "falkland-islands-malvinas",
+        "faroe-islands": "faeroe-islands",
+        "fed-rep-of-germany": "germany",
+        "guantanamo-bay": "us-naval-base-guantanamo-bay",
+        "madeira-islands": "madeira",
+        "pitcairn-island": "pitcairn-islands",
+        "republic-of-kosovo": "kosovo",
+        "reunion-island": "reunion",
+        "saint-vincent": "saint-vincent-and-the-grenadines",
+        "slovak-republic": "slovakia",
+        "svalbard": "svalbard-islands",
+        "us-virgin-islands": "united-states-virgin-islands",
+        "vatican-city": "vatican",
+
+        # dxccs belonging to countries
+        "african-italy": "italy",
+        "asiatic-russia": "russian-federation",
+        "asiatic-turkey": "turkey",
+        "east-malaysia": "malaysia",
+        "eastern-kiribati": "kiribati",
+        "european-russia": "russian-federation",
+        "european-turkey": "turkey",
+        "kaliningrad": "russian-federation",
+        "south-cook-islands": "cook-islands",
+        "uk-base-areas-on-cyprus": "cyprus",
+        "west-malaysia": "malaysia",
+        "western-kiribati": "kiribati",
+
+        # special dxccs
+        "itu-hq": "switzerland",
+        "united-nations-hq": "new-york",
+
+        # islands belonging to countries
+        "agalega-and-saint-brandon": "mauritius",
+        "balearic-islands": "spain",
+        "ceuta-and-melilla": "spain",
+        "chatham-islands": "new-zealand",
+        "corsica": "france",
+        "crete": "greece",
+        "dodecanese": "greece",
+        "easter-island": "chile",
+        "fernando-de-noronha": "brazil",
+        "galapagos-islands": "ecuador",
+        "juan-fernandez-islands": "chile",
+        "lakshadweep-islands": "india",
+        "mariana-islands": "northern-mariana-islands",
+        "market-reef": "sweden",
+        "ogasawara": "japan",
+        "rodriguez-island": "mauritius",
+        "san-andres-and-providencia": "colombia",
+        "sardinia": "italy",
+        "sicily": "italy",
+        "temotu-province": "solomon-islands",
+
+        # nice approximation for drawing maps
+        "bonaire": "venezuela",
+        "saba-and-saint-eustatius": "saint-kitts-and-nevis",
+    }.get(name, name)
+
+
+def create_map_image(output_path, highlighted_country):
+    logger.info(f"Creating map for {highlighted_country}")
+    for name, geom in natural_earth_list("10m", "admin_0_countries"):
+        if canonicalize_country_name(name) == highlighted_country:
+            return draw_natural_earth_item(output_path, geom)
+    for name, geom in natural_earth_list("10m", "admin_0_countries", "NAME"):
+        if canonicalize_country_name(name) == highlighted_country:
+            return draw_natural_earth_item(output_path, geom)
+    for name, geom in natural_earth_list("10m", "admin_0_map_units"):
+        if canonicalize_country_name(name) == highlighted_country:
+            return draw_natural_earth_item(output_path, geom)
+    for name, geom in natural_earth_list("50m", "admin_0_tiny_countries"):
+        if canonicalize_country_name(name) == highlighted_country:
+            return draw_natural_earth_item(output_path, geom)
+    for name, geom in natural_earth_list("110m", "admin_1_states_provinces", "name"):
+        if canonicalize_country_name(name) == highlighted_country:
+            return draw_natural_earth_item(output_path, geom)
+    raise RuntimeError(f"No geometry for {highlighted_country}")
 
 def cache_map_image(country_name):
     filename = f"map-{slugify(country_name)}.png"
@@ -253,22 +269,25 @@ class VideoOutput:
         self.frames_written += 1
 
 def append_callsign(morse, cic, video, callsign):
-    country = cic.get_country_name(callsign)
-    logger.info(f"Appending callsign {callsign} ({country})")
-    morse.write_text(callsign)
-    morse.write_silence(40 * morse.samples_per_dit)
-    append_word(morse, callsign)
-    morse.write_silence(15 * morse.samples_per_dit)
+    try:
+        country = canonicalize_country_name(cic.get_country_name(callsign))
+        logger.info(f"Appending callsign {callsign} ({country})")
+        morse.write_text(callsign)
+        morse.write_silence(40 * morse.samples_per_dit)
+        append_word(morse, callsign)
+        morse.write_silence(15 * morse.samples_per_dit)
 
-    image = cv2.imread(cache_map_image(country))
-    assert image.shape[:2] == (1080, 1920)
+        image = cv2.imread(cache_map_image(country))
+        assert image.shape[:2] == (1080, 1920)
 
-    frame_count = int(video.fps * morse.time()) - video.frames_written
-    for i in range(frame_count):
-        video.write_frame(image)
+        frame_count = int(video.fps * morse.time()) - video.frames_written
+        for i in range(frame_count):
+            video.write_frame(image)
 
-    logger.info(f"A-V: {morse.time() - video.time()}")
+        logger.info(f"A-V: {morse.time() - video.time()}")
 
+    except KeyError as e:
+        logger.warning("Failed to get country for callsign: %s", callsign)
 
 def cache_online_file(url, filename):
     if not os.path.isfile(filename):
