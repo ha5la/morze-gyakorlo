@@ -222,7 +222,8 @@ def create_map_image(output_path, highlighted_country):
     raise RuntimeError(f"No geometry for {highlighted_country}")
 
 def cache_map_image(country_name):
-    filename = f"map-{slugify(country_name)}.png"
+    os.makedirs("map.d", exist_ok=True)
+    filename = f"map.d/{slugify(country_name)}.png"
     if not os.path.isfile(filename):
         create_map_image(filename, country_name)
 
