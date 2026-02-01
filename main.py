@@ -2,7 +2,6 @@
 import cartopy.crs as ccrs
 import cartopy.io.shapereader as shpreader
 import cartopy.feature as cfeature
-import cv2
 import logging
 import math
 import matplotlib.pyplot as plt
@@ -243,29 +242,25 @@ def append_word(output, word):
         append_wav(output, f"corpus/{output.sample_rate}/{mapped}.wav")
 
 class VideoOutput:
-    def __init__(self, filename, fps=2):
-        self.filename = filename
+    def __init__(self, dirname, fps=2):
+        self.dirname = dirname
         self.fps = fps
-        self.writer = None
         self.frames_written = 0
+        os.makedirs(dirname, exist_ok=True)
+        for f in os.listdir(dirname):
+            os.unlink(os.path.join(dirname, f))
 
     def time(self):
         return self.frames_written / self.fps
 
     def __enter__(self):
-        fourcc = cv2.VideoWriter_fourcc(*'png ')
-        self.writer = cv2.VideoWriter(self.filename, fourcc, self.fps, (1920, 1080))
-        if not self.writer.isOpened():
-            raise RuntimeError(f"Failed to open output video file {self.filename}")
-
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.writer:
-            self.writer.release()
+        pass
 
     def write_frame(self, frame):
-        self.writer.write(frame)
+        os.link(frame, f"{self.dirname}/{self.frames_written:05d}.png")
         self.frames_written += 1
 
 def append_callsign(morse, cic, video, callsign):
@@ -277,8 +272,7 @@ def append_callsign(morse, cic, video, callsign):
         append_word(morse, callsign)
         morse.write_silence(15 * morse.samples_per_dit)
 
-        image = cv2.imread(cache_map_image(country))
-        assert image.shape[:2] == (1080, 1920)
+        image = cache_map_image(country)
 
         frame_count = int(video.fps * morse.time()) - video.frames_written
         for i in range(frame_count):
@@ -312,7 +306,7 @@ def main():
 
     with wave.open("audio.wav", "wb") as audio:
         m = Morse(audio, wpm=int(sys.argv[1]))
-        with VideoOutput("video.mkv") as video:
+        with VideoOutput("video.d") as video:
             with logging_redirect_tqdm():
                 for _ in trange(int(sys.argv[2])):
                     append_callsign(m, cic, video, random.choice(callsigns))
@@ -320,7 +314,8 @@ def main():
     logger.info("Multiplexing video and audio")
     subprocess.run([
         'ffmpeg',
-        '-i', 'video.mkv',
+        '-framerate', '2',
+        '-i', 'video.d/%05d.png',
         '-i', 'audio.wav',
         '-c:v', 'libx264',
         '-preset', 'medium',
