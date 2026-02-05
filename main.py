@@ -316,6 +316,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     all_callsigns = load_callsigns()
+    random.seed(0)
     callsigns = [random.choice(all_callsigns) for _ in range(int(sys.argv[2]))]
     cty_plist = cache_online_file("https://www.country-files.com/cty/cty.plist", "cty.plist")
 
