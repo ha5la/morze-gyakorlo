@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 import cartopy.crs as ccrs
-import cartopy.io.shapereader as shpreader
 import cartopy.feature as cfeature
+import cartopy.io.shapereader as shpreader
 import logging
 import math
 import matplotlib.pyplot as plt
@@ -14,15 +14,15 @@ import wave
 
 from pyhamtools import LookupLib, Callinfo
 from slugify import slugify
-from tqdm import trange
+from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
+from threading import Thread
 
 logger = logging.getLogger(__name__)
 
 class Morse:
     def __init__(self, output, wpm=35, tone_hz=600, sample_rate=48000):
         self.output = output
-        output.setparams((1, 2, sample_rate, 0, "NONE", "not compressed"))
         self.sample_rate = sample_rate
         self.delta_phi = 2 * math.pi * tone_hz / sample_rate
         self.samples_per_dit = int(sample_rate * 60 / (50 * wpm))  # PARIS = 50 dits: https://morsecode.world/international/timing/
@@ -48,7 +48,7 @@ class Morse:
         return result
 
     def write_samples(self, samples):
-        self.output.writeframes(samples)
+        self.output.write(samples)
         self.audio_samples_written += len(samples) // 2
 
     def write_silence(self, sample_count):
@@ -243,35 +243,37 @@ def append_word(output, word):
         append_wav(output, f"corpus/{output.sample_rate}/{mapped}.wav")
 
 class VideoOutput:
-    def __init__(self, dirname, fps=2):
-        self.dirname = dirname
+    def __init__(self, output, fps=2):
+        self.output = output
         self.fps = fps
         self.frames_written = 0
-        os.makedirs(dirname, exist_ok=True)
-        for f in os.listdir(dirname):
-            os.unlink(os.path.join(dirname, f))
 
     def time(self):
         return self.frames_written / self.fps
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
-
-    def write_frame(self, frame):
-        os.link(frame, f"{self.dirname}/{self.frames_written:05d}.png")
+    def write_frame(self, filename):
+        with open(filename, "rb") as f:
+            while True:
+                chunk = f.read(4096)
+                if not chunk:
+                    break
+                self.output.write(chunk)
         self.frames_written += 1
 
-def append_callsign(morse, cic, video, callsign):
+    def close(self):
+        self.output.close()
+
+def append_callsign(name, morse, cic, video, callsign):
     try:
         country = canonicalize_country_name(cic.get_country_name(callsign))
-        logger.info(f"Appending callsign {callsign} ({country})")
+        logger.info(f"{name}: Appending callsign {callsign} ({country})")
         morse.write_text(callsign)
         morse.write_silence(40 * morse.samples_per_dit)
         append_word(morse, callsign)
         morse.write_silence(15 * morse.samples_per_dit)
+
+        if not video:
+            return
 
         image = cache_map_image(country)
 
@@ -297,27 +299,34 @@ def load_callsigns():
     logger.info(f"Total number of callsigns in MASTER.SCP: {len(result)}")
     return result
 
+def process(name, cty_plist, audio_file, video, callsigns):
+    my_lookuplib = LookupLib(lookuptype="countryfile", filename=cty_plist)
+    cic = Callinfo(my_lookuplib)
+    m = Morse(audio_file, wpm=int(sys.argv[1]))
+    for callsign in tqdm(callsigns, desc=name):
+        append_callsign(name, m, cic, video, callsign)
+    if video:
+        video.close()
+
+class DevNull:
+    def write(self, _):
+        pass
+
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    callsigns = load_callsigns()
+    all_callsigns = load_callsigns()
+    callsigns = [random.choice(all_callsigns) for _ in range(int(sys.argv[2]))]
     cty_plist = cache_online_file("https://www.country-files.com/cty/cty.plist", "cty.plist")
-    my_lookuplib = LookupLib(lookuptype="countryfile", filename=cty_plist)
-    cic = Callinfo(my_lookuplib)
 
-    with wave.open("audio.wav", "wb") as audio:
-        m = Morse(audio, wpm=int(sys.argv[1]))
-        with VideoOutput("video.d") as video:
-            with logging_redirect_tqdm():
-                for _ in trange(int(sys.argv[2])):
-                    append_callsign(m, cic, video, random.choice(callsigns))
-
-    logger.info("Multiplexing video and audio")
-    subprocess.run([
+    video_rd, video_wr = os.pipe()
+    with subprocess.Popen([
         'ffmpeg',
+        '-f', 's16le', '-ar', '48000', '-ac', '1',
+        '-i', 'pipe:0',
         '-framerate', '2',
-        '-i', 'video.d/%05d.png',
-        '-i', 'audio.wav',
+        '-f', 'image2pipe',
+        '-i', f'pipe:{video_rd}',
         '-c:v', 'libx264',
         '-preset', 'medium',
         '-tune', 'stillimage',
@@ -330,7 +339,17 @@ def main():
         '-shortest',
         '-y',
         'out.mkv'
-    ], check=True)
+    ], stdin=subprocess.PIPE, pass_fds=[video_rd], stderr=subprocess.DEVNULL) as ffmpeg:
+        os.close(video_rd)
+        video_file = os.fdopen(video_wr, "wb")
+        video = VideoOutput(video_file)
+        with logging_redirect_tqdm():
+            video_thread = Thread(target=process, args=("video", cty_plist, DevNull(), video, callsigns))
+            video_thread.start()
+            process("audio", cty_plist, ffmpeg.stdin, None, callsigns)
+            ffmpeg.stdin.close()
+            video_thread.join()
+
 
 if __name__ == "__main__":
     main()
