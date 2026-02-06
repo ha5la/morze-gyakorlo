@@ -260,8 +260,24 @@ class VideoOutput:
                 self.output.write(chunk)
         self.frames_written += 1
 
+    def write_country_frames_until(self, country, t):
+        image = cache_map_image(country)
+
+        frame_count = int(self.fps * t) - self.frames_written
+        for i in range(frame_count):
+            self.write_frame(image)
+
+        logger.info(f"A-V: {t - self.time()}")
+
     def close(self):
         self.output.close()
+
+class NoVideo:
+    def write_country_frames_until(self, _country, _t):
+        pass
+
+    def close(self):
+        pass
 
 def append_callsign(name, morse, cic, video, callsign):
     try:
@@ -271,17 +287,7 @@ def append_callsign(name, morse, cic, video, callsign):
         morse.write_silence(40 * morse.samples_per_dit)
         append_word(morse, callsign)
         morse.write_silence(15 * morse.samples_per_dit)
-
-        if not video:
-            return
-
-        image = cache_map_image(country)
-
-        frame_count = int(video.fps * morse.time()) - video.frames_written
-        for i in range(frame_count):
-            video.write_frame(image)
-
-        logger.info(f"A-V: {morse.time() - video.time()}")
+        video.write_country_frames_until(country, morse.time())
 
     except KeyError as e:
         logger.warning("Failed to get country for callsign: %s", callsign)
@@ -305,11 +311,15 @@ def process(name, cty_plist, audio_file, video, callsigns):
     m = Morse(audio_file, wpm=int(sys.argv[1]))
     for callsign in tqdm(callsigns, desc=name):
         append_callsign(name, m, cic, video, callsign)
-    if video:
-        video.close()
+
+    video.close()
+    audio_file.close()
 
 class DevNull:
     def write(self, _):
+        pass
+
+    def close(self):
         pass
 
 def main():
@@ -347,8 +357,7 @@ def main():
         with logging_redirect_tqdm():
             video_thread = Thread(target=process, args=("video", cty_plist, DevNull(), video, callsigns))
             video_thread.start()
-            process("audio", cty_plist, ffmpeg.stdin, None, callsigns)
-            ffmpeg.stdin.close()
+            process("audio", cty_plist, ffmpeg.stdin, NoVideo(), callsigns)
             video_thread.join()
 
 
