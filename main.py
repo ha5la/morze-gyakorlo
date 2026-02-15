@@ -6,17 +6,17 @@ import logging
 import math
 import matplotlib.pyplot as plt
 import os
-import random
 import subprocess
 import sys
 import urllib.request
 import wave
 
 from pyhamtools import LookupLib, Callinfo
+from random import Random
 from slugify import slugify
+from threading import Thread
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-from threading import Thread
 
 logger = logging.getLogger(__name__)
 
@@ -325,9 +325,7 @@ class DevNull:
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    all_callsigns = load_callsigns()
-    random.seed(0)
-    callsigns = [random.choice(all_callsigns) for _ in range(int(sys.argv[2]))]
+    callsigns = Random(0).sample(load_callsigns(), k=int(sys.argv[2]))
     cty_plist = cache_online_file("https://www.country-files.com/cty/cty.plist", "cty.plist")
 
     video_rd, video_wr = os.pipe()
