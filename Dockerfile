@@ -16,7 +16,7 @@ RUN apk add --no-cache ffmpeg
 WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
-COPY main.py /app/
+COPY *.py /app/
 COPY corpus /app/corpus
 
 ENV PATH="/app/.venv/bin:$PATH"
